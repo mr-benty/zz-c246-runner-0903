@@ -1,0 +1,27 @@
+name: c246-mi
+on: { workflow_dispatch: {} }
+jobs:
+  mi:
+    runs-on: ubuntu-latest
+    steps:
+      - name: is a MANAGED IDENTITY assigned to this GitHub-hosted runner?
+        run: |
+          set -u
+          q () { L="$1"; U="$2"
+            C=$(curl -s -o /tmp/m -w '%{http_code}' --max-time 5 -H 'Metadata: true' "$U" 2>/dev/null || echo 000)
+            B=$(wc -c < /tmp/m 2>/dev/null || echo 0)
+            # print ONLY status+size, plus whether an access_token KEY is present (never its value)
+            HAS=$(grep -c 'access_token' /tmp/m 2>/dev/null || echo 0)
+            echo "MI $L -> http=$C bytes=$B access_token_key_present=$HAS"; }
+          echo "=== CONTROL: plain IMDS instance doc must answer, or the probe is void ==="
+          q "control_instance_doc" 'http://169.254.169.254/metadata/instance?api-version=2021-02-01'
+          echo "=== does the VM declare any identity at all? ==="
+          q "identity_endpoint  " 'http://169.254.169.254/metadata/identity?api-version=2018-02-01'
+          echo "=== TOKEN endpoints, three resources (status only, body never echoed) ==="
+          q "token_management   " 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fmanagement.azure.com%2F'
+          q "token_vault        " 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fvault.azure.net'
+          q "token_storage      " 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fstorage.azure.com%2F'
+          echo "=== NEGATIVE CONTROL: an invented IMDS path must NOT 200 ==="
+          q "invented_control   " 'http://169.254.169.254/metadata/qqqqzzzz-nope?api-version=2021-02-01'
+          rm -f /tmp/m
+          echo "=== done. No token value was printed at any point. ==="
