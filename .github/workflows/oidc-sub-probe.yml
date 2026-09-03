@@ -1,0 +1,21 @@
+name: oidc-sub-probe
+on: [workflow_dispatch]
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: mint and decode sub
+        run: |
+          T=$(curl -sH "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=oidc-sub-probe" | python3 -c "import sys,json;print(json.load(sys.stdin)['value'])")
+          P=$(echo "$T" | cut -d. -f2); P="$P$(printf '=%.0s' $(seq 1 $((4 - ${#P} % 4 == 4 ? 0 : 4 - ${#P} % 4))))"
+          echo "$P" | tr '_-' '/+' | base64 -d 2>/dev/null | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+print('SUB=',d.get('sub'))
+print('repository=',d.get('repository'),'repository_id=',d.get('repository_id'))
+print('repository_owner=',d.get('repository_owner'),'owner_id=',d.get('repository_owner_id'))
+print('iss=',d.get('iss'))"
