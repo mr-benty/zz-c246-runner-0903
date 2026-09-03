@@ -1,0 +1,25 @@
+name: c246-net
+on: { workflow_dispatch: {} }
+jobs:
+  net:
+    runs-on: ubuntu-latest
+    steps:
+      - name: network position of the executing identity (reachability only, never bodies)
+        run: |
+          set -u
+          p () { L="$1"; shift
+            C=$(curl -s -o /tmp/n -w '%{http_code}' --max-time 4 "$@" 2>/dev/null || echo "000")
+            echo "NET $L -> http=$C bytes=$(wc -c < /tmp/n 2>/dev/null || echo 0)"; }
+          echo "=== POSITIVE CONTROL: does this runner have egress at all? ==="
+          p "ctrl_api.github.com " https://api.github.com/
+          echo "=== AZURE IMDS (GitHub-hosted runners are Azure VMs) ==="
+          p "imds_instance      " -H 'Metadata: true' 'http://169.254.169.254/metadata/instance?api-version=2021-02-01'
+          p "imds_bare_no_hdr   " 'http://169.254.169.254/metadata/instance?api-version=2021-02-01'
+          echo "=== legacy/EC2-style IMDS path ==="
+          p "imds_ec2_style     " 'http://169.254.169.254/latest/meta-data/'
+          echo "=== WireServer (Azure host agent, the sibling of IMDS) ==="
+          p "wireserver         " 'http://168.63.129.16/?comp=versions'
+          echo "=== runner network position (identity only, no scanning) ==="
+          ip -4 -o addr show 2>/dev/null | awk '{print "IFACE", $2, $4}'
+          echo "default route: $(ip route show default 2>/dev/null | head -1)"
+          echo "=== done: statuses and byte counts only; no metadata body printed ==="
